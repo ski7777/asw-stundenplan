@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,6 +23,8 @@ func main() {
 	outputdir := parser.String("o", "out", &argparse.Options{Required: false, Help: "output directory", Default: "out"})
 	timezone := parser.String("t", "timezone", &argparse.Options{Required: false, Help: "timezone", Default: "Europe/Berlin"})
 	interval := parser.Int("i", "interval", &argparse.Options{Required: false, Help: "interval", Default: nil})
+	motdSummary := parser.String("m", "motd-summary", &argparse.Options{Required: false, Help: "motd summary", Default: ""})
+	motdDescription := parser.StringList("d", "motd-description", &argparse.Options{Required: false, Help: "motd description", Default: ""})
 	err := parser.Parse(os.Args)
 	if err != nil {
 		fmt.Print(parser.Usage(err))
@@ -34,7 +37,7 @@ func main() {
 		log.Fatalln(err)
 	}
 	if interval == nil || *interval == 0 {
-		run(tz, *outputdir)
+		run(tz, *outputdir, motdSummary, motdDescription)
 	} else {
 		log.Println(fmt.Sprintf("running in interval mode. Interval %d seconds", *interval))
 		ticker := time.NewTicker(time.Duration(*interval) * time.Second)
@@ -44,7 +47,7 @@ func main() {
 				return
 			}
 			runing = true
-			run(tz, *outputdir)
+			run(tz, *outputdir, motdSummary, motdDescription)
 			runing = false
 		}
 		runOnce()
@@ -60,7 +63,7 @@ func main() {
 	}
 }
 
-func run(tz *time.Location, outputdir string) {
+func run(tz *time.Location, outputdir string, motdSummary *string, motdDescription *[]string) {
 	log.Println("scraping timetable urls")
 	ttm, err := timetablelist.GetTimeTableListDefault()
 	if err != nil {
@@ -142,6 +145,21 @@ func run(tz *time.Location, outputdir string) {
 		),
 	)
 	log.Println("writing ics files")
+	var motd *ics.VEvent
+	if *motdSummary != "" {
+		now := time.Now()
+		motd = ics.NewEvent("motd")
+		motd.SetSummary(*motdSummary)
+		motd.SetDtStampTime(now)
+		motd.SetAllDayStartAt(now)
+		motd.SetAllDayEndAt(now)
+		motd.SetTimeTransparency(ics.TransparencyOpaque)
+		motd.SetStatus(ics.ObjectStatusTentative)
+		motd.SetColor("red")
+		if len(*motdDescription) > 0 {
+			motd.SetDescription(strings.Join(*motdDescription, "\n"))
+		}
+	}
 	for cn, ce := range events {
 		wg.Add(1)
 		go func(cn string, ce map[string]timetable.Event) {
@@ -154,6 +172,9 @@ func run(tz *time.Location, outputdir string) {
 			cal.SetTimezoneId(tz.String())
 			for id, e := range ce {
 				cal.AddVEvent(ical.ConvertEvent(e, id, tz))
+			}
+			if motd != nil {
+				cal.AddVEvent(motd)
 			}
 			af, err := os.Create(path.Join(outputdir, cn+".ics"))
 			if err != nil {
