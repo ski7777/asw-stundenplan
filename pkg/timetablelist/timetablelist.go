@@ -38,16 +38,15 @@ func GetTimeTableList(overviewurl string, selector string) (data TimeTableMap, e
 	}
 
 	data = make(TimeTableMap)
-	doc.Find(selector).Each(func(_ int, s *goquery.Selection) {
-		if len(s.Text()) == 0 {
+	doc.Find(selector).EachWithBreak(func(_ int, s *goquery.Selection) (coninue bool) {
+		ttname := s.Text()
+		if len(ttname) == 0 {
 			return
 		}
 		if href, hrefok := s.Attr("href"); hrefok {
-			if up, err := url.QueryUnescape(href); err != nil {
+			if parsedurl.Path, err = url.QueryUnescape(href); err != nil {
 				return
 			} else {
-				parsedurl.Path = up
-				ttname := s.Text()
 				if matches := tools.FindNamedMatches(ttnamematcher, ttname); matches == nil {
 					err = errors.New(fmt.Sprintf("failed to parse timetable name: %s", ttname))
 					return
@@ -60,7 +59,8 @@ func GetTimeTableList(overviewurl string, selector string) (data TimeTableMap, e
 							err = errors.New(fmt.Sprintf("failed to parse timetable name: %s", ttname))
 							return
 						} else {
-							if blockint, err := strconv.Atoi(block); err != nil {
+							var blockint int
+							if blockint, err = strconv.Atoi(block); err != nil {
 								err = errors.New(fmt.Sprintf("failed to parse timetable name: %s", ttname))
 								return
 							} else {
@@ -73,8 +73,8 @@ func GetTimeTableList(overviewurl string, selector string) (data TimeTableMap, e
 					}
 				}
 			}
-
 		}
+		return true
 	})
 	return
 }
