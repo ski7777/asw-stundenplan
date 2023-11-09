@@ -21,6 +21,7 @@ func main() {
 	parser := argparse.NewParser("asw-stundenplan", "scrapes all timetable events from ASW gGmbH ans saves them as ics")
 	outputdir := parser.String("o", "out", &argparse.Options{Required: false, Help: "output directory", Default: "out"})
 	timezone := parser.String("t", "timezone", &argparse.Options{Required: false, Help: "timezone", Default: "Europe/Berlin"})
+	interval := parser.Int("i", "interval", &argparse.Options{Required: false, Help: "interval", Default: nil})
 	err := parser.Parse(os.Args)
 	if err != nil {
 		fmt.Print(parser.Usage(err))
@@ -32,6 +33,34 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	if interval == nil || *interval == 0 {
+		run(tz, *outputdir)
+	} else {
+		log.Println(fmt.Sprintf("running in interval mode. Interval %d seconds", *interval))
+		ticker := time.NewTicker(time.Duration(*interval) * time.Second)
+		runing := true
+		runOnce := func() {
+			if runing {
+				return
+			}
+			runing = true
+			run(tz, *outputdir)
+			runing = false
+		}
+		runOnce()
+		go func() {
+			for {
+				select {
+				case <-ticker.C:
+					runOnce()
+				}
+			}
+		}()
+		<-make(chan struct{})
+	}
+}
+
+func run(tz *time.Location, outputdir string) {
 	log.Println("scraping timetable urls")
 	ttm, err := timetablelist.GetTimeTableListDefault()
 	if err != nil {
@@ -126,7 +155,7 @@ func main() {
 			for id, e := range ce {
 				cal.AddVEvent(ical.ConvertEvent(e, id, tz))
 			}
-			af, err := os.Create(path.Join(*outputdir, cn+".ics"))
+			af, err := os.Create(path.Join(outputdir, cn+".ics"))
 			if err != nil {
 				log.Fatalln(err)
 			}
