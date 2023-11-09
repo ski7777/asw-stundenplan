@@ -14,10 +14,10 @@ import (
 
 var ttnamematcher = regexp.MustCompile(`(?P<class>.+)-(?P<block>[[:digit:]])\. ?Block`)
 
-type ClassTimeTableMap map[int]string
-type TimeTableMap map[string]ClassTimeTableMap
+type ClassTimeTablePagesMap map[int]string
+type TimeTablePagesMap map[string]ClassTimeTablePagesMap
 
-func GetTimeTableList(overviewurl string, selector string) (data TimeTableMap, err error) {
+func GetTimeTableList(overviewurl string, selector string) (data TimeTablePagesMap, err error) {
 	res, err := http.Get(overviewurl)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func GetTimeTableList(overviewurl string, selector string) (data TimeTableMap, e
 		log.Fatal(err)
 	}
 
-	data = make(TimeTableMap)
+	data = make(TimeTablePagesMap)
 	doc.Find(selector).EachWithBreak(func(_ int, s *goquery.Selection) (coninue bool) {
 		ttname := s.Text()
 		if len(ttname) == 0 {
@@ -65,7 +65,7 @@ func GetTimeTableList(overviewurl string, selector string) (data TimeTableMap, e
 								return
 							} else {
 								if _, ok := data[class]; !ok {
-									data[class] = make(ClassTimeTableMap)
+									data[class] = make(ClassTimeTablePagesMap)
 								}
 								data[class][blockint] = parsedurl.String()
 							}
@@ -79,7 +79,7 @@ func GetTimeTableList(overviewurl string, selector string) (data TimeTableMap, e
 	return
 }
 
-func GetTimeTableListDefault() (data TimeTableMap, err error) {
+func GetTimeTableListDefault() (data TimeTablePagesMap, err error) {
 	return GetTimeTableList(
 		"https://www.asw-ggmbh.de/laufender-studienbetrieb/stundenplaene",
 		"table > tbody > tr > td > a",
