@@ -38,7 +38,7 @@ func main() {
 	} else {
 		log.Println(fmt.Sprintf("running in interval mode. Interval %d seconds", *interval))
 		ticker := time.NewTicker(time.Duration(*interval) * time.Second)
-		runing := true
+		runing := false
 		runOnce := func() {
 			if runing {
 				return
