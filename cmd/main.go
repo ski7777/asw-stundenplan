@@ -62,8 +62,10 @@ func main() {
 		}
 	}
 	wg.Wait()
-	for _, e := range threadErrors {
-		log.Println(e)
+	if len(threadErrors) > 0 {
+		for _, e := range threadErrors {
+			log.Println(e)
+		}
 		log.Fatalln("exiting due to errors above")
 	}
 	tz, err := time.LoadLocation("Europe/Berlin")
@@ -98,8 +100,10 @@ func main() {
 		}(cn, ce)
 	}
 	wg.Wait()
-	for _, e := range threadErrors {
-		log.Println(e)
+	if len(threadErrors) > 0 {
+		for _, e := range threadErrors {
+			log.Println(e)
+		}
 		log.Fatalln("exiting due to errors above")
 	}
 }
