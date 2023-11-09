@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/akamensky/argparse"
 	ics "github.com/arran4/golang-ical"
 	"github.com/ski7777/asw-stundenplan/pkg/ical"
 	"github.com/ski7777/asw-stundenplan/pkg/timetablelist"
@@ -17,6 +18,20 @@ import (
 )
 
 func main() {
+	parser := argparse.NewParser("asw-stundenplan", "scrapes all timetable events from ASW gGmbH ans saves them as ics")
+	outputdir := parser.String("o", "out", &argparse.Options{Required: false, Help: "output directory", Default: "out"})
+	timezone := parser.String("t", "timezone", &argparse.Options{Required: false, Help: "timezone", Default: "Europe/Berlin"})
+	err := parser.Parse(os.Args)
+	if err != nil {
+		fmt.Print(parser.Usage(err))
+	}
+	if _, err := os.Stat(*outputdir); os.IsNotExist(err) {
+		log.Fatalln("output directory does not exist")
+	}
+	tz, err := time.LoadLocation(*timezone)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	log.Println("scraping timetable urls")
 	ttm, err := timetablelist.GetTimeTableListDefault()
 	if err != nil {
@@ -97,10 +112,6 @@ func main() {
 			len(events),
 		),
 	)
-	tz, err := time.LoadLocation("Europe/Berlin")
-	if err != nil {
-		log.Fatalln(err)
-	}
 	log.Println("writing ics files")
 	for cn, ce := range events {
 		wg.Add(1)
@@ -115,7 +126,7 @@ func main() {
 			for id, e := range ce {
 				cal.AddVEvent(ical.ConvertEvent(e, id, tz))
 			}
-			af, err := os.Create(path.Join("out", cn+".ics"))
+			af, err := os.Create(path.Join(*outputdir, cn+".ics"))
 			if err != nil {
 				log.Fatalln(err)
 			}
