@@ -12,7 +12,7 @@ import (
 	"strconv"
 )
 
-var ttnamematcher = regexp.MustCompile(`(?P<class>.+)-(?P<block>[[:digit:]])\.Block`)
+var ttnamematcher = regexp.MustCompile(`(?P<class>.+)-(?P<block>[[:digit:]])\. ?Block`)
 
 type ClassTimeTableMap map[int]string
 type TimeTableMap map[string]ClassTimeTableMap
@@ -82,6 +82,6 @@ func GetTimeTableList(overviewurl string, selector string) (data TimeTableMap, e
 func GetTimeTableListDefault() (data TimeTableMap, err error) {
 	return GetTimeTableList(
 		"https://www.asw-ggmbh.de/laufender-studienbetrieb/stundenplaene",
-		".table-responsive a.verweis",
+		"table > tbody > tr > td > a",
 	)
 }
