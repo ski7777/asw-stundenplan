@@ -8,6 +8,7 @@ import (
 	"github.com/ski7777/asw-stundenplan/pkg/timetablelist"
 	"github.com/ski7777/sked-campus-html-parser/pkg/timetable"
 	"github.com/ski7777/sked-campus-html-parser/pkg/timetablepage"
+	"github.com/thoas/go-funk"
 	"log"
 	"os"
 	"path"
@@ -16,10 +17,24 @@ import (
 )
 
 func main() {
+	log.Println("scraping timetable urls")
 	ttm, err := timetablelist.GetTimeTableListDefault()
 	if err != nil {
 		log.Fatalln(err)
 	}
+	log.Println(
+		fmt.Sprintf(
+			"found %d classes with a total of %d timetablepages",
+			len(ttm),
+			funk.Reduce(
+				funk.Values(ttm),
+				func(acc int, cttpm timetablelist.ClassTimeTablePagesMap) int {
+					return acc + len(cttpm)
+				},
+				0,
+			),
+		),
+	)
 	var (
 		errorsMutex  = &sync.Mutex{}
 		threadErrors []error
@@ -27,6 +42,7 @@ func main() {
 		eventsMutex  = &sync.Mutex{}
 		events       = make(map[string]map[string]timetable.Event) //class --> {id --> event}
 	)
+	log.Println("scraping all timetablepages")
 	for cn, cttm := range ttm {
 		for bn, tturl := range cttm {
 			wg.Add(1)
@@ -68,10 +84,24 @@ func main() {
 		}
 		log.Fatalln("exiting due to errors above")
 	}
+	log.Println(
+		fmt.Sprintf(
+			"scraped %d events for %d classes",
+			funk.Reduce(
+				funk.Values(events),
+				func(acc int, cem map[string]timetable.Event) int {
+					return acc + len(cem)
+				},
+				0,
+			),
+			len(events),
+		),
+	)
 	tz, err := time.LoadLocation("Europe/Berlin")
 	if err != nil {
 		log.Fatalln(err)
 	}
+	log.Println("writing ics files")
 	for cn, ce := range events {
 		wg.Add(1)
 		go func(cn string, ce map[string]timetable.Event) {
@@ -80,6 +110,8 @@ func main() {
 			cal.SetXPublishedTTL("PT10M")
 			cal.SetRefreshInterval("PT10M")
 			cal.SetMethod(ics.MethodRequest)
+			cal.SetTzid(tz.String())
+			cal.SetTimezoneId(tz.String())
 			for id, e := range ce {
 				cal.AddVEvent(ical.ConvertEvent(e, id, tz))
 			}
@@ -106,4 +138,5 @@ func main() {
 		}
 		log.Fatalln("exiting due to errors above")
 	}
+	log.Println("done")
 }
