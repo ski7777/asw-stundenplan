@@ -145,9 +145,9 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 		),
 	)
 	log.Println("writing ics files")
+	now := time.Now()
 	var motd *ics.VEvent
 	if *motdSummary != "" {
-		now := time.Now()
 		motd = ics.NewEvent("motd")
 		motd.SetSummary(*motdSummary)
 		motd.SetDtStampTime(now)
@@ -170,6 +170,7 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 			cal.SetMethod(ics.MethodRequest)
 			cal.SetTzid(tz.String())
 			cal.SetTimezoneId(tz.String())
+			cal.SetLastModified(now)
 			for id, e := range ce {
 				cal.AddVEvent(ical.ConvertEvent(e, id, tz))
 			}
