@@ -171,6 +171,8 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 			cal.SetTzid(tz.String())
 			cal.SetTimezoneId(tz.String())
 			cal.SetLastModified(now)
+			cal.SetProductId(fmt.Sprintf("Stundenplan für die Klasse %s der ASW gGmbH.", cn))
+			cal.SetDescription("Weitere INformationen zum Stundenplan finden Sie unter https://github.com/ski7777/asw-stundenplan")
 			for id, e := range ce {
 				cal.AddVEvent(ical.ConvertEvent(e, id, tz))
 			}
