@@ -79,7 +79,7 @@ jobs:
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     needs: build
     steps:
-      - name: executing remote ssh commands using ssh key
+      - name: deploy using ssh
         uses: appleboy/ssh-action@v1.0.1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
