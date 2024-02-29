@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"github.com/akamensky/argparse"
 	ics "github.com/arran4/golang-ical"
-	"github.com/ski7777/asw-stundenplan/pkg/ical"
+	"github.com/ski7777/asw-stundenplan/pkg/extended_event"
+	"github.com/ski7777/asw-stundenplan/pkg/roomheatmap"
+	"github.com/ski7777/asw-stundenplan/pkg/rooms"
 	"github.com/ski7777/asw-stundenplan/pkg/timetablelist"
-	"github.com/ski7777/sked-campus-html-parser/pkg/timetable"
 	"github.com/ski7777/sked-campus-html-parser/pkg/timetablepage"
 	"github.com/thoas/go-funk"
 	"log"
@@ -31,6 +32,9 @@ func main() {
 	}
 	if _, err := os.Stat(*outputdir); os.IsNotExist(err) {
 		log.Fatalln("output directory does not exist")
+	}
+	if err := os.MkdirAll(path.Join(*outputdir, "rooms"), 0755); err != nil {
+		log.Fatalln(err)
 	}
 	tz, err := time.LoadLocation(*timezone)
 	if err != nil {
@@ -87,7 +91,7 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 		threadErrors []error
 		wg           sync.WaitGroup
 		eventsMutex  = &sync.Mutex{}
-		events       = make(map[string]map[string]timetable.Event) //class --> {id --> event}
+		events       = make(map[string]map[string]*extended_event.ExtendedEvent) //class --> {id --> event}
 	)
 	log.Println("scraping all timetablepages")
 	for cn, cttm := range ttm {
@@ -105,10 +109,10 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 				}
 				eventsMutex.Lock()
 				defer eventsMutex.Unlock()
-				var classEvents map[string]timetable.Event
+				var classEvents map[string]*extended_event.ExtendedEvent
 				var ok bool
 				if classEvents, ok = events[cn]; !ok {
-					classEvents = make(map[string]timetable.Event)
+					classEvents = make(map[string]*extended_event.ExtendedEvent)
 				}
 				defer func() { events[cn] = classEvents }()
 				for id, e := range ttp.AllEvents {
@@ -118,7 +122,7 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 						threadErrors = append(threadErrors, errors.New(fmt.Sprintf("duplicate event id: class: %s, block: %d, event: %s", cn, bn, id)))
 						return
 					}
-					classEvents[id] = e
+					classEvents[id] = extended_event.NewExtendedEvent(e, id, cn, tz)
 				}
 
 			}(cn, bn, tturl)
@@ -136,7 +140,7 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 			"scraped %d events for %d classes",
 			funk.Reduce(
 				funk.Values(events),
-				func(acc int, cem map[string]timetable.Event) int {
+				func(acc int, cem map[string]*extended_event.ExtendedEvent) int {
 					return acc + len(cem)
 				},
 				0,
@@ -162,7 +166,7 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 	}
 	for cn, ce := range events {
 		wg.Add(1)
-		go func(cn string, ce map[string]timetable.Event) {
+		go func(cn string, ce map[string]*extended_event.ExtendedEvent) {
 			defer wg.Done()
 			cal := ics.NewCalendarFor(cn)
 			cal.SetXPublishedTTL("PT10M")
@@ -172,9 +176,9 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 			cal.SetTimezoneId(tz.String())
 			cal.SetLastModified(now)
 			cal.SetProductId(fmt.Sprintf("Stundenplan für die Klasse %s der ASW gGmbH.", cn))
-			cal.SetDescription("Weitere INformationen zum Stundenplan finden Sie unter https://github.com/ski7777/asw-stundenplan")
-			for id, e := range ce {
-				cal.AddVEvent(ical.ConvertEvent(e, id, tz))
+			cal.SetDescription("Weitere Informationen zum Stundenplan finden Sie unter https://github.com/ski7777/asw-stundenplan")
+			for _, e := range ce {
+				cal.AddVEvent(e.ToVEvent())
 			}
 			if motd != nil {
 				cal.AddVEvent(motd)
@@ -194,6 +198,61 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 				return
 			}
 		}(cn, ce)
+	}
+	wg.Wait()
+	if len(threadErrors) > 0 {
+		for _, e := range threadErrors {
+			log.Println(e)
+		}
+		log.Fatalln("exiting due to errors above")
+	}
+	log.Println("generating room heatmaps")
+	for rhmd := 0; rhmd < 14; rhmd++ {
+		go func(rhmd int) {
+			rhmstart := time.Date(
+				now.Year(),
+				now.Month(),
+				now.Day(),
+				0,
+				0,
+				0,
+				0,
+				tz,
+			).Add(time.Hour * 24 * time.Duration(rhmd))
+			rhmend := rhmstart.Add(time.Hour * 24) // 1 day
+			rhm := roomheatmap.NewRoomHeatmap(
+				rhmstart,
+				rhmend,
+				time.Minute*15,
+				rooms.Rooms,
+				tz,
+				funk.Reduce(funk.Values(events), func(acc []*extended_event.ExtendedEvent, ae map[string]*extended_event.ExtendedEvent) []*extended_event.ExtendedEvent {
+					return append(acc, funk.Values(ae).([]*extended_event.ExtendedEvent)...)
+				}, []*extended_event.ExtendedEvent{}).([]*extended_event.ExtendedEvent),
+			)
+			rhm.MinTime = time.Date(0, 0, 0, 8, 0, 0, 0, tz)
+			rhm.MaxTime = time.Date(0, 0, 0, 20, 0, 0, 0, tz)
+
+			af, err := os.Create(path.Join(outputdir, "rooms", fmt.Sprintf("%02d.html", rhmd)))
+			if err != nil {
+				threadErrors = append(threadErrors, err)
+				return
+			}
+			defer func(af *os.File) {
+				_ = af.Close()
+			}(af)
+			var rhmhtml string
+			rhmhtml, err = rhm.GenHTML()
+			if err != nil {
+				threadErrors = append(threadErrors, err)
+				return
+			}
+			_, err = af.WriteString(rhmhtml)
+			if err != nil {
+				threadErrors = append(threadErrors, err)
+				return
+			}
+		}(rhmd)
 	}
 	wg.Wait()
 	if len(threadErrors) > 0 {

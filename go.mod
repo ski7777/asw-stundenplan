@@ -1,8 +1,6 @@
 module github.com/ski7777/asw-stundenplan
 
-go 1.21
-
-toolchain go1.21.3
+go 1.22.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.1
