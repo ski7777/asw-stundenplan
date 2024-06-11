@@ -25,7 +25,7 @@ func main() {
 	timezone := parser.String("t", "timezone", &argparse.Options{Required: false, Help: "timezone", Default: "Europe/Berlin"})
 	interval := parser.Int("i", "interval", &argparse.Options{Required: false, Help: "interval", Default: nil})
 	motdSummary := parser.String("m", "motd-summary", &argparse.Options{Required: false, Help: "motd summary", Default: ""})
-	motdDescription := parser.StringList("d", "motd-description", &argparse.Options{Required: false, Help: "motd description", Default: ""})
+	motdDescription := parser.StringList("d", "motd-description", &argparse.Options{Required: false, Help: "motd description", Default: []string{}})
 	movingEventYears := parser.Int("n", "moving-event", &argparse.Options{Required: false, Help: "moving event n years in the future. 0 disables this feature", Default: 0})
 	movingEventDescription := parser.String("e", "moving-event-description", &argparse.Options{Required: false, Help: "moving event description. use %d as placeholder for the years"})
 	err := parser.Parse(os.Args)
