@@ -26,7 +26,7 @@ func main() {
 	interval := parser.Int("i", "interval", &argparse.Options{Required: false, Help: "interval", Default: nil})
 	motdSummary := parser.String("m", "motd-summary", &argparse.Options{Required: false, Help: "motd summary", Default: ""})
 	motdDescription := parser.StringList("d", "motd-description", &argparse.Options{Required: false, Help: "motd description", Default: ""})
-	movingEventYears := parser.Int("n", "moving-event", &argparse.Options{Required: false, Help: "moving event n years in the future. 0 disables this feature.", Default: 0})
+	movingEventYears := parser.Int("n", "moving-event", &argparse.Options{Required: false, Help: "moving event n years in the future. 0 disables this feature", Default: 0})
 	movingEventDescription := parser.String("e", "moving-event-description", &argparse.Options{Required: false, Help: "moving event description. use %d as placeholder for the years"})
 	err := parser.Parse(os.Args)
 	if err != nil {
@@ -173,12 +173,12 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 		if movingEventDescription != nil {
 			movingEvent.SetDescription(fmt.Sprintf(*movingEventDescription, movingEventYears))
 		}
-		motd.SetDtStampTime(movingDate)
-		motd.SetAllDayStartAt(movingDate)
-		motd.SetAllDayEndAt(movingDate)
-		motd.SetTimeTransparency(ics.TransparencyTransparent)
-		motd.SetStatus(ics.ObjectStatusTentative)
-		motd.SetColor("red")
+		movingEvent.SetDtStampTime(movingDate)
+		movingEvent.SetAllDayStartAt(movingDate)
+		movingEvent.SetAllDayEndAt(movingDate)
+		movingEvent.SetTimeTransparency(ics.TransparencyTransparent)
+		movingEvent.SetStatus(ics.ObjectStatusTentative)
+		movingEvent.SetColor("red")
 	}
 	for cn, ce := range events {
 		wg.Add(1)
