@@ -26,6 +26,8 @@ func main() {
 	interval := parser.Int("i", "interval", &argparse.Options{Required: false, Help: "interval", Default: nil})
 	motdSummary := parser.String("m", "motd-summary", &argparse.Options{Required: false, Help: "motd summary", Default: ""})
 	motdDescription := parser.StringList("d", "motd-description", &argparse.Options{Required: false, Help: "motd description", Default: ""})
+	movingEventYears := parser.Int("n", "moving-event", &argparse.Options{Required: false, Help: "moving event n years in the future. 0 disables this feature.", Default: 0})
+	movingEventDescription := parser.String("e", "moving-event-description", &argparse.Options{Required: false, Help: "moving event description. use %d as placeholder for the years"})
 	err := parser.Parse(os.Args)
 	if err != nil {
 		fmt.Print(parser.Usage(err))
@@ -41,7 +43,7 @@ func main() {
 		log.Fatalln(err)
 	}
 	if interval == nil || *interval == 0 {
-		run(tz, *outputdir, motdSummary, motdDescription)
+		run(tz, *outputdir, motdSummary, motdDescription, *movingEventYears, movingEventDescription)
 	} else {
 		log.Println(fmt.Sprintf("running in interval mode. Interval %d seconds", *interval))
 		ticker := time.NewTicker(time.Duration(*interval) * time.Second)
@@ -51,7 +53,7 @@ func main() {
 				return
 			}
 			runing = true
-			run(tz, *outputdir, motdSummary, motdDescription)
+			run(tz, *outputdir, motdSummary, motdDescription, *movingEventYears, movingEventDescription)
 			runing = false
 		}
 		runOnce()
@@ -67,7 +69,7 @@ func main() {
 	}
 }
 
-func run(tz *time.Location, outputdir string, motdSummary *string, motdDescription *[]string) {
+func run(tz *time.Location, outputdir string, motdSummary *string, motdDescription *[]string, movingEventYears int, movingEventDescription *string) {
 	log.Println("scraping timetable urls")
 	ttm, err := timetablelist.GetTimeTableListDefault()
 	if err != nil {
@@ -150,7 +152,7 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 	)
 	log.Println("writing ics files")
 	now := time.Now()
-	var motd *ics.VEvent
+	var motd, movingEvent *ics.VEvent
 	if *motdSummary != "" {
 		motd = ics.NewEvent("motd")
 		motd.SetSummary(*motdSummary)
@@ -163,6 +165,20 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 		if len(*motdDescription) > 0 {
 			motd.SetDescription(strings.Join(*motdDescription, "\n"))
 		}
+	}
+	if movingEventYears > 0 {
+		movingDate := now.AddDate(movingEventYears, 0, 0)
+		movingEvent = ics.NewEvent("moving-event")
+		movingEvent.SetSummary("moving-event")
+		if movingEventDescription != nil {
+			movingEvent.SetDescription(fmt.Sprintf(*movingEventDescription, movingEventYears))
+		}
+		motd.SetDtStampTime(movingDate)
+		motd.SetAllDayStartAt(movingDate)
+		motd.SetAllDayEndAt(movingDate)
+		motd.SetTimeTransparency(ics.TransparencyTransparent)
+		motd.SetStatus(ics.ObjectStatusTentative)
+		motd.SetColor("red")
 	}
 	for cn, ce := range events {
 		wg.Add(1)
@@ -182,6 +198,9 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 			}
 			if motd != nil {
 				cal.AddVEvent(motd)
+			}
+			if movingEvent != nil {
+				cal.AddVEvent(movingEvent)
 			}
 			af, err := os.Create(path.Join(outputdir, cn+".ics"))
 			if err != nil {
