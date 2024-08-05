@@ -132,10 +132,12 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 	}
 	wg.Wait()
 	if len(threadErrors) > 0 {
+		log.Println("errors occurred:")
 		for _, e := range threadErrors {
 			log.Println(e)
 		}
-		log.Fatalln("exiting due to errors above")
+		log.Println("continuing")
+		threadErrors = []error{}
 	}
 	log.Println(
 		fmt.Sprintf(
