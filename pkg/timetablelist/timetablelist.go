@@ -12,7 +12,7 @@ import (
 	"strconv"
 )
 
-var ttnamematcher = regexp.MustCompile(`(?P<class>.+)-(?P<block>[[:digit:]])\. ?Block`)
+var ttnamematcher = regexp.MustCompile(`(?P<class>.+)[-_](?P<block>[[:digit:]])(\. |_[[:digit:]].)?Block`)
 
 type ClassTimeTablePagesMap map[int]string
 type TimeTablePagesMap map[string]ClassTimeTablePagesMap
