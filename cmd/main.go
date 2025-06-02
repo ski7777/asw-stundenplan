@@ -14,6 +14,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -28,9 +29,18 @@ func main() {
 	motdDescription := parser.StringList("d", "motd-description", &argparse.Options{Required: false, Help: "motd description", Default: []string{}})
 	movingEventYears := parser.Int("n", "moving-event", &argparse.Options{Required: false, Help: "moving event n years in the future. 0 disables this feature", Default: 0})
 	movingEventDescription := parser.String("e", "moving-event-description", &argparse.Options{Required: false, Help: "moving event description. use %d as placeholder for the years"})
+	eventFilterRegexString := parser.String("f", "event-filter-regex", &argparse.Options{Required: false, Help: "regex to filter events. only events that do not match this regex will be included in the output", Default: nil})
 	err := parser.Parse(os.Args)
 	if err != nil {
 		fmt.Print(parser.Usage(err))
+	}
+	var eventFilterRegex *regexp.Regexp
+	if eventFilterRegexString != nil && *eventFilterRegexString != "" {
+		var err error
+		eventFilterRegex, err = regexp.Compile(*eventFilterRegexString)
+		if err != nil {
+			log.Fatalln("failed to compile event filter regex:", err)
+		}
 	}
 	if _, err := os.Stat(*outputdir); os.IsNotExist(err) {
 		log.Fatalln("output directory does not exist")
@@ -43,7 +53,7 @@ func main() {
 		log.Fatalln(err)
 	}
 	if interval == nil || *interval == 0 {
-		run(tz, *outputdir, motdSummary, motdDescription, *movingEventYears, movingEventDescription)
+		run(tz, *outputdir, motdSummary, motdDescription, *movingEventYears, movingEventDescription, eventFilterRegex)
 	} else {
 		log.Println(fmt.Sprintf("running in interval mode. Interval %d seconds", *interval))
 		ticker := time.NewTicker(time.Duration(*interval) * time.Second)
@@ -53,7 +63,7 @@ func main() {
 				return
 			}
 			runing = true
-			run(tz, *outputdir, motdSummary, motdDescription, *movingEventYears, movingEventDescription)
+			run(tz, *outputdir, motdSummary, motdDescription, *movingEventYears, movingEventDescription, eventFilterRegex)
 			runing = false
 		}
 		runOnce()
@@ -69,7 +79,7 @@ func main() {
 	}
 }
 
-func run(tz *time.Location, outputdir string, motdSummary *string, motdDescription *[]string, movingEventYears int, movingEventDescription *string) {
+func run(tz *time.Location, outputdir string, motdSummary *string, motdDescription *[]string, movingEventYears int, movingEventDescription *string, eventFilterRegex *regexp.Regexp) {
 	log.Println("scraping timetable urls")
 	ttm, err := timetablelist.GetTimeTableListDefault()
 	if err != nil {
@@ -152,6 +162,17 @@ func run(tz *time.Location, outputdir string, motdSummary *string, motdDescripti
 			len(events),
 		),
 	)
+	// filter out specific events based on the eventFilterRegex
+	if eventFilterRegex != nil {
+		for _, ce := range events {
+			for id, e := range ce {
+				if e.Summary != nil && eventFilterRegex.MatchString(*e.Summary) {
+					delete(ce, id)
+				}
+			}
+		}
+	}
+
 	log.Println("writing ics files")
 	now := time.Now()
 	var motd, movingEvent *ics.VEvent
